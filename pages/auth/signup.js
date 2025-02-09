@@ -30,8 +30,16 @@ export default function SignUp() {
 
       if (error) throw error;
 
-      // Redirect to profile creation
-      router.push('/auth/create-profile');
+      // Show success message
+      setError({
+        isSuccess: true,
+        message: "Account created successfully! You can now sign in."
+      });
+      
+      // Redirect to login after a short delay
+      setTimeout(() => {
+        router.push('/auth/login');
+      }, 2000);
       
     } catch (error) {
       setError({

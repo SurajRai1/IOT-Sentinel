@@ -5,7 +5,20 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Handle client-side routing
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/.netlify/functions/next_renderer"
+  status = 200
+
+# Handle authentication callbacks
+[[redirects]]
+  from = "/auth/*"
+  to = "/.netlify/functions/next_renderer"
+  status = 200
+
+# Handle API routes
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/next_renderer"
   status = 200 
