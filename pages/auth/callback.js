@@ -11,13 +11,18 @@ export default function AuthCallback() {
         // Check if we have a session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
-        if (sessionError) throw sessionError;
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          throw sessionError;
+        }
         
         if (!session) {
           console.log('No session found, redirecting to login');
           router.push('/auth/login');
           return;
         }
+
+        console.log('Session found:', session);
 
         // Check if user has a profile
         const { data: profile, error: profileError } = await supabase
@@ -27,11 +32,33 @@ export default function AuthCallback() {
           .single();
 
         if (profileError && profileError.code !== 'PGRST116') {
+          console.error('Profile error:', profileError);
           throw profileError;
         }
 
         if (!profile) {
-          console.log('No profile found, redirecting to profile creation');
+          console.log('No profile found, creating initial profile');
+          // Create initial profile for Google users
+          if (session.user.app_metadata.provider === 'google') {
+            const { error: createError } = await supabase
+              .from('profiles')
+              .insert([
+                {
+                  id: session.user.id,
+                  email: session.user.email,
+                  first_name: session.user.user_metadata.full_name?.split(' ')[0] || '',
+                  last_name: session.user.user_metadata.full_name?.split(' ').slice(1).join(' ') || '',
+                  avatar_url: session.user.user_metadata.avatar_url,
+                }
+              ]);
+
+            if (createError) {
+              console.error('Error creating profile:', createError);
+              throw createError;
+            }
+          }
+          
+          console.log('Redirecting to profile creation');
           router.push('/auth/create-profile');
         } else {
           console.log('Profile found, redirecting to dashboard');

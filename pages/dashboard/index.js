@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../../lib/supabaseClient';
-import io from 'socket.io-client';
+import { io } from 'socket.io-client';
 import SecurityTab from '../../components/SecurityTab';
 import AnalyticsTab from '../../components/AnalyticsTab';
 import DevicesTab from '../../components/DevicesTab';
@@ -9,6 +9,8 @@ import SettingsTab from '../../components/SettingsTab';
 import NetworkDiscoveryTab from '../../components/NetworkDiscoveryTab';
 import OverviewTab from '../../components/OverviewTab';
 import ProfileTab from '../../components/ProfileTab';
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 export default function Dashboard() {
   const [devices, setDevices] = useState([]);
@@ -81,77 +83,84 @@ export default function Dashboard() {
   };
 
   const initializeSocket = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return null;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return null;
 
-    const newSocket = io('http://localhost:3001', {
-      transports: ['websocket'],
-      reconnection: true,
-      reconnectionAttempts: 5
-    });
-    
-    newSocket.on('connect', () => {
-      console.log('Connected to server');
-      setSocketConnected(true);
-      // Send authentication token
-      newSocket.emit('authenticate', session.access_token);
-      // Request initial data after authentication
-      newSocket.emit('requestScan');
-    });
+      console.log('Connecting to socket at:', BACKEND_URL);
+      
+      const newSocket = io(BACKEND_URL, {
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionAttempts: 5
+      });
+      
+      newSocket.on('connect', () => {
+        console.log('Connected to server');
+        setSocketConnected(true);
+        // Send authentication token
+        newSocket.emit('authenticate', session.access_token);
+        // Request initial data after authentication
+        newSocket.emit('requestScan');
+      });
 
-    newSocket.on('disconnect', () => {
-      console.log('Disconnected from server');
-      setSocketConnected(false);
-    });
+      newSocket.on('disconnect', () => {
+        console.log('Disconnected from server');
+        setSocketConnected(false);
+      });
 
-    newSocket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-      setSocketConnected(false);
-    });
+      newSocket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+        setSocketConnected(false);
+      });
 
-    newSocket.on('scanComplete', (data) => {
-      console.log('Scan complete:', data);
-      if (data.devices) {
-        setDevices(data.devices);
-      }
-      if (data.stats) {
-        setStats(data.stats);
-      }
-      setScanning(false);
-    });
+      newSocket.on('scanComplete', (data) => {
+        console.log('Scan complete:', data);
+        if (data.devices) {
+          setDevices(data.devices);
+        }
+        if (data.stats) {
+          setStats(data.stats);
+        }
+        setScanning(false);
+      });
 
-    newSocket.on('scanError', (error) => {
-      console.error('Scan error:', error);
-      setScanning(false);
-    });
+      newSocket.on('scanError', (error) => {
+        console.error('Scan error:', error);
+        setScanning(false);
+      });
 
-    newSocket.on('scanStart', () => {
-      console.log('Scan started');
-      setScanning(true);
-    });
+      newSocket.on('scanStart', () => {
+        console.log('Scan started');
+        setScanning(true);
+      });
 
-    newSocket.on('devicesUpdate', (data) => {
-      console.log('Devices update:', data);
-      if (data.devices) {
-        setDevices(data.devices);
-      }
-      if (data.stats) {
-        setStats(data.stats);
-      }
-    });
+      newSocket.on('devicesUpdate', (data) => {
+        console.log('Devices update:', data);
+        if (data.devices) {
+          setDevices(data.devices);
+        }
+        if (data.stats) {
+          setStats(data.stats);
+        }
+      });
 
-    newSocket.on('deviceStatusChange', (data) => {
-      console.log('Device status changed:', data);
-      // Update the specific device in the devices array
-      setDevices(prevDevices => 
-        prevDevices.map(device => 
-          device.id === data.id ? { ...device, ...data } : device
-        )
-      );
-    });
+      newSocket.on('deviceStatusChange', (data) => {
+        console.log('Device status changed:', data);
+        // Update the specific device in the devices array
+        setDevices(prevDevices => 
+          prevDevices.map(device => 
+            device.id === data.id ? { ...device, ...data } : device
+          )
+        );
+      });
 
-    setSocket(newSocket);
-    return newSocket;
+      setSocket(newSocket);
+      return newSocket;
+    } catch (error) {
+      console.error('Socket initialization error:', error);
+      return null;
+    }
   };
 
   const scanNetwork = async () => {
